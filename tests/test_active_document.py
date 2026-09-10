@@ -19,9 +19,6 @@ class ActiveDocumentTests(unittest.TestCase):
         self.expected = self.root / "test document.docx"
         # Only a path placeholder: this probe never parses document contents.
         self.expected.touch()
-        patcher = patch.object(probe, "TEST_DOCUMENTS", self.root)
-        patcher.start()
-        self.addCleanup(patcher.stop)
         patcher = patch.object(probe, "pythoncom")
         self.com = patcher.start()
         self.addCleanup(patcher.stop)
@@ -53,6 +50,35 @@ class ActiveDocumentTests(unittest.TestCase):
         self.document.Path = str(self.root / "other")
         self.assertFalse(probe.check_active_document(self.expected)["matches_expected"])
 
+    def test_discovers_active_test_document_without_path_or_body_access(self):
+        result = probe.check_active_document()
+        self.assertEqual(result["status"], "matched")
+        self.assertEqual(result["full_path"], str(self.expected))
+        self.assertEqual(result["expected_path"], str(self.expected))
+        self.com.CoUninitialize.assert_called_once_with()
+
+    def test_discovery_rejects_invalid_targets_without_selection_access(self):
+        cases = [("", str(self.expected)),
+                 ("https://example.invalid", "https://example.invalid/a.docx"),
+                 (str(self.root), str(self.root / "missing.docx"))]
+        other = self.root / "wrong.txt"
+        other.touch()
+        cases.append((str(self.root), str(other)))
+        for folder, full_name in cases:
+            with self.subTest(full_name=full_name):
+                self.document.Path = folder
+                self.document.FullName = full_name
+                self.assertEqual(probe.check_active_document(include_selection=True)["status"],
+                                 "invalid_document_file")
+
+    def test_discovery_outside_project_is_allowed(self):
+        result = probe.check_active_document()
+        self.assertEqual(result["status"], "matched")
+
+    def test_discovery_without_open_document(self):
+        self.client.GetActiveObject.return_value = SimpleNamespace(Documents=SimpleNamespace(Count=0))
+        self.assertEqual(probe.check_active_document()["status"], "no_document")
+
     def test_unsaved_document_has_no_full_path(self):
         self.document.Path = ""
         result = probe.check_active_document(self.expected)
@@ -73,10 +99,9 @@ class ActiveDocumentTests(unittest.TestCase):
         self.assertEqual(result["status"], "no_document")
         self.com.CoUninitialize.assert_called_once_with()
 
-    def test_outside_test_directory_rejected_before_com(self):
-        with patch.object(probe, "TEST_DOCUMENTS", self.root / "allowed"):
-            result = probe.check_active_document(self.expected)
-        self.assertEqual(result["status"], "invalid_test_file")
+    def test_missing_file_rejected_before_com(self):
+        result = probe.check_active_document(self.root / "missing.docx")
+        self.assertEqual(result["status"], "invalid_document_file")
         self.com.CoInitializeEx.assert_not_called()
         self.client.GetActiveObject.assert_not_called()
 

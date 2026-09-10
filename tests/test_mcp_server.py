@@ -44,7 +44,7 @@ class MCPServerTests(unittest.IsolatedAsyncioTestCase):
                 self.assertFalse(tool.annotations.open_world_hint)
                 self.assertEqual(tool.input_schema.get("properties", {}), {})
                 self.assertIsNotNone(tool.output_schema)
-                required = [set(), {"expected_document"}, {"expected_document"},
+                required = [set(), set(), set(),
                             {"expected_document", "text"},
                             {"expected_document", "text", "expected_state"}]
                 for index, tool in enumerate(result.tools):
@@ -102,6 +102,17 @@ class MCPServerTests(unittest.IsolatedAsyncioTestCase):
                 self.assertFalse(result.is_error)
                 self.assertEqual(result.structured_content, self.preview())
             backend.assert_called_once_with(mcp_server.PROJECT / "test-documents/a.docx", "测试\n文字")
+
+    async def test_read_tools_accept_no_path_over_mcp(self):
+        for tool, options in [("get_active_document", {}),
+                              ("get_selection", {"include_selection": True})]:
+            with self.subTest(tool=tool):
+                with patch.object(mcp_server, "check_active_document",
+                                  return_value={"status": "matched"}) as backend:
+                    async with Client(mcp_server.create_server()) as client:
+                        result = await client.call_tool(tool, {})
+                        self.assertFalse(result.is_error)
+                    backend.assert_called_once_with(None, **options)
 
     @staticmethod
     def arguments(state=True):

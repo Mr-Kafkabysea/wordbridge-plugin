@@ -9,7 +9,6 @@ import pywintypes
 import win32com.client
 
 
-TEST_DOCUMENTS = Path(__file__).resolve().parents[1] / "test-documents"
 MK_E_UNAVAILABLE = 0x800401E3
 MAX_SELECTION_POSITIONS = 10000
 
@@ -60,22 +59,23 @@ def _read_selection(word, expected: Path) -> dict:
         selection = None
 
 
-def check_active_document(expected_document: Path, *, include_selection=False) -> dict:
-    """Compare metadata with a test file, optionally reading its selected text.
+def document_file_path(path: Path) -> Path:
+    resolved = path.resolve(strict=True)
+    if not resolved.is_file() or resolved.suffix.lower() != ".docx":
+        raise ValueError("Expected an existing local .docx file")
+    return resolved
+
+
+def check_active_document(expected_document: Path | None = None, *, include_selection=False) -> dict:
+    """Compare metadata with a local .docx file, optionally reading its selected text.
 
     Matching the path is not permission to write, and ReadOnly=False does not
     rule out editing protection. Future operations must recheck their target.
     """
     try:
-        expected = expected_document.resolve(strict=True)
-        if (
-            not expected.is_relative_to(TEST_DOCUMENTS.resolve())
-            or not expected.is_file()
-            or expected.suffix.lower() != ".docx"
-        ):
-            raise ValueError("Expected a test .docx file")
+        expected = document_file_path(expected_document) if expected_document is not None else None
     except (OSError, ValueError, RuntimeError):
-        return {"status": "invalid_test_file", "matches_expected": False}
+        return {"status": "invalid_document_file", "matches_expected": False}
 
     initialized = False
     word = document = None
@@ -94,6 +94,16 @@ def check_active_document(expected_document: Path, *, include_selection=False) -
         folder = str(document.Path)
         full_name = str(document.FullName) if folder else None
         read_only = bool(document.ReadOnly)
+        if expected is None:
+            # Capture a target in this call, never cache it across calls.
+            # The selection's own document is rechecked before reading text.
+            try:
+                if not full_name or not Path(full_name).is_absolute():
+                    raise ValueError("Expected a saved local document")
+                expected = document_file_path(Path(full_name))
+            except (OSError, ValueError, RuntimeError):
+                return {"status": "invalid_document_file", "matches_expected": False,
+                        "name": name, "full_path": full_name, "read_only": read_only}
         # Reject unsaved documents and web URLs rather than treating them as
         # relative local paths. Path comparison follows Windows case rules.
         matches = bool(

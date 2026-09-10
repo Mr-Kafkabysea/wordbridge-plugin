@@ -59,7 +59,6 @@ class AppendTests(unittest.TestCase):
         self.root = Path(stack.enter_context(TemporaryDirectory()))
         self.path = self.root / "append.docx"
         self.path.touch()
-        stack.enter_context(patch.object(probe, "TEST_DOCUMENTS", self.root))
         self.com = stack.enter_context(patch.object(probe, "pythoncom"))
         self.client = stack.enter_context(patch.object(probe.win32com, "client"))
         self.document = FakeDocument(self.path)
@@ -166,12 +165,19 @@ class AppendTests(unittest.TestCase):
         self.assertEqual(self.preview()["status"], "undo_record_busy")
         self.assert_no_write()
 
-    def test_invalid_text_and_outside_directory_refused(self):
+    def test_invalid_text_and_invalid_files_refused(self):
         for text in ("", "bad\x00text", "x" * (probe.MAX_TEXT_LENGTH + 1)):
             with self.subTest(text_length=len(text)):
                 self.assertFalse(probe.append_text(self.path, text)["write_attempted"])
-        with patch.object(probe, "TEST_DOCUMENTS", self.root / "allowed"):
-            self.assertEqual(self.preview()["status"], "invalid_test_file")
+        wrong = self.root / "wrong.txt"
+        wrong.touch()
+        folder = self.root / "folder.docx"
+        folder.mkdir()
+        for path in (wrong, folder, self.root / "missing.docx"):
+            with self.subTest(path=path):
+                result = probe.append_text(path, self.text)
+                self.assertEqual(result["status"], "invalid_document_file")
+                self.assertFalse(result["write_attempted"])
         self.com.CoInitializeEx.assert_not_called()
 
     def test_document_ending_in_table_refused(self):

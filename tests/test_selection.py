@@ -34,7 +34,6 @@ class SelectionTests(unittest.TestCase):
         self.root = Path(stack.enter_context(TemporaryDirectory()))
         self.expected = self.root / "selection.docx"
         self.expected.touch()
-        stack.enter_context(patch.object(probe, "TEST_DOCUMENTS", self.root))
         self.com = stack.enter_context(patch.object(probe, "pythoncom"))
         self.client = stack.enter_context(patch.object(probe.win32com, "client"))
         self.document = SimpleNamespace(
@@ -63,6 +62,24 @@ class SelectionTests(unittest.TestCase):
     def test_empty_cursor_does_not_read_text(self):
         self.range.End = self.range.Start
         self.assertEqual(self.read()["status"], "empty_selection")
+        self.assertEqual(self.range.text_reads, 0)
+
+    def test_read_without_path(self):
+        result = probe.check_active_document(include_selection=True)
+        self.assertEqual(result["status"], "selected")
+        self.assertEqual(result["selection"]["text"], self.range.content)
+
+    def test_read_without_path_still_rechecks_selection_document(self):
+        self.range.Document = SimpleNamespace(
+            Path=str(self.root), FullName=str(self.root / "other.docx"))
+        result = probe.check_active_document(include_selection=True)
+        self.assertEqual(result["status"], "selection_document_mismatch")
+        self.assertEqual(self.range.text_reads, 0)
+
+    def test_read_without_path_does_not_expand_cursor(self):
+        self.range.End = self.range.Start
+        self.assertEqual(probe.check_active_document(include_selection=True)["status"],
+                         "empty_selection")
         self.assertEqual(self.range.text_reads, 0)
 
     def test_different_active_document_does_not_read_selection(self):

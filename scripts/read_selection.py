@@ -1,4 +1,4 @@
-"""Read selected text from an explicitly identified Word test document."""
+"""Read selected text from an explicitly identified Word document."""
 
 import argparse
 import json

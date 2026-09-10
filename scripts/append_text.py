@@ -1,4 +1,4 @@
-"""Preview or explicitly apply a plain-text append to a Word test document."""
+"""Preview or explicitly apply a plain-text append to a Word document."""
 
 import argparse
 import hashlib
@@ -10,9 +10,9 @@ import pywintypes
 import win32com.client
 
 if __package__:
-    from .check_active_document import TEST_DOCUMENTS
+    from .check_active_document import document_file_path
 else:
-    from check_active_document import TEST_DOCUMENTS
+    from check_active_document import document_file_path
 
 
 MAX_TEXT_LENGTH = 10000
@@ -36,7 +36,7 @@ def _normalize_text(text: str) -> str:
 
 
 def _snapshot(document, expected: Path, text: str) -> dict:
-    """Read bounded test content for change detection, returning only a digest."""
+    """Read bounded document content for change detection, returning only a digest."""
     if not str(document.Path):
         raise Refused("different_document")
     full_name = str(document.FullName)
@@ -79,19 +79,13 @@ def append_text(expected_document: Path, text: str, *, apply=False, expected_sta
     """
     try:
         text = _normalize_text(text)
-        expected = expected_document.resolve(strict=True)
-        if (
-            not expected.is_relative_to(TEST_DOCUMENTS.resolve())
-            or not expected.is_file()
-            or expected.suffix.lower() != ".docx"
-        ):
-            raise Refused("invalid_test_file")
+        expected = document_file_path(expected_document)
         if apply and not expected_state:
             raise Refused("preview_required")
     except Refused as error:
         return {"status": str(error), "write_attempted": False}
     except (OSError, ValueError, RuntimeError):
-        return {"status": "invalid_test_file", "write_attempted": False}
+        return {"status": "invalid_document_file", "write_attempted": False}
 
     initialized = False
     started_record = False

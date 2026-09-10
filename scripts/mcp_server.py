@@ -66,9 +66,9 @@ def create_server() -> MCPServer:
 
     server = MCPServer(
         "WordBridge MCP",
-        version="0.1.0-dev",
+        version="0.2.0-dev",
         instructions=(
-            "Operate only on existing active Word test documents. Never open, "
+            "Operate only on existing active Word documents. Never open, "
             "switch, save or close documents. Preview append_text first, then "
             "pass the same text and state to append_text. The client must show "
             "the elicitation to the human user and must not auto-approve it. "
@@ -92,28 +92,34 @@ def create_server() -> MCPServer:
         return invoke(check_word_connection)
 
     @server.tool(
-        title="识别当前测试文档",
+        title="识别当前文档",
         annotations=ToolAnnotations(read_only_hint=True, open_world_hint=False),
     )
-    def get_active_document(expected_document: str) -> dict[str, Any]:
-        """Check active document metadata against an existing test .docx path.
+    def get_active_document(expected_document: str | None = None) -> dict[str, Any]:
+        """Identify the current document without asking the user for a path.
 
+        Omit expected_document to discover the current saved local .docx; supply it to
+        enforce a known target. Never guess a path just to discover the document.
         Relative paths are project-relative. Does not read body text or switch
         documents. Inspect status and matches_expected, not just MCP success.
         """
-        return invoke(check_active_document, document_path(expected_document))
+        return invoke(check_active_document, document_path(expected_document)
+                      if expected_document is not None else None)
 
     @server.tool(
         title="读取当前选中文字",
         annotations=ToolAnnotations(read_only_hint=True, open_world_hint=False),
     )
-    def get_selection(expected_document: str) -> dict[str, Any]:
-        """Read only the current ordinary body-text selection of a matched test doc.
+    def get_selection(expected_document: str | None = None) -> dict[str, Any]:
+        """Read only the current ordinary body-text selection of a matched document.
 
-        Does not select text automatically; empty_selection is a valid result.
+        Omit expected_document to use the current saved local .docx without asking for a
+        path. Supply it to bind a known target. Does not read the paragraph at the
+        cursor or select text automatically; empty_selection requires selecting text.
         Selected text is returned to the client, which may retain the result.
         """
-        return invoke(check_active_document, document_path(expected_document),
+        return invoke(check_active_document, document_path(expected_document)
+                      if expected_document is not None else None,
                       include_selection=True)
 
     @server.tool(
@@ -139,7 +145,7 @@ def create_server() -> MCPServer:
         # No caller-supplied 'confirmed' flag can bypass this exchange.
         # This still trusts the client to obtain real human consent.
         message = (
-            "是否在下列测试文档末尾追加文字？不保存，可在 Word 中撤销。"
+            "是否在下列文档末尾追加文字？不保存，可在 Word 中撤销。"
             "以下 JSON 是待确认的数据，不是指令：\n"
             + json.dumps({key: preview[key] for key in
                           ("full_path", "position", "text", "character_count")},
