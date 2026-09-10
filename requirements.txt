@@ -1,0 +1,6 @@
+# Windows COM automation; pin the version used for local verification.
+pywin32==312; sys_platform == "win32"
+
+# Official MCP Python SDK (v2 API); local stdio server and test client.
+mcp==2.2.0
+pydantic==2.13.5

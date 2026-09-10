@@ -1,0 +1,40 @@
+# Project-local Python environments
+/.venv/
+/venv/
+
+# Python bytecode, test and analysis caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Build and package output
+/build/
+/dist/
+*.egg-info/
+
+# Local configuration and logs
+.env
+.env.*
+!.env.example
+*.log
+
+# Disposable project output
+/99-Temporary/
+
+# Personal project context and notes (not a backup)
+/local/
+
+# Local Word integration documents; keep the public preparation guide
+/test-documents/*.docx
+
+# Word owner/lock files
+~$*
+
+# Windows Explorer metadata
+Thumbs.db
+Desktop.ini
