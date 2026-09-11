@@ -9,10 +9,10 @@ ROOT = Path(__file__).resolve().parents[1]
 # Explicit allowlist: new files require a packaging review.
 FILES = (
     ".codex-plugin/plugin.json", ".mcp.json", "README.md", "CHANGELOG.md",
-    "AGENTS.md", "requirements.txt", "skills/wordbridge/SKILL.md",
+    "AGENTS.md", "LICENSE", "requirements.txt", "skills/wordbridge/SKILL.md",
     "docs/插件打包与更新.md", "docs/第三方依赖.md", "docs/MCP确认表单兼容性问题.md",
     "test-documents/README.md", "install.ps1", "scripts/install_plugin.py",
-    "scripts/build_plugin.py", "scripts/check_plugin_runtime.py",
+    "scripts/build_plugin.py", "scripts/check_plugin_runtime.py", "scripts/find_python.ps1",
     "scripts/append_text.py", "scripts/check_active_document.py",
     "scripts/check_mcp.py", "scripts/check_word_connection.py",
     "scripts/connection_popup.py", "scripts/connection_status.py",

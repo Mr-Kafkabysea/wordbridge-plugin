@@ -1,8 +1,15 @@
-param([switch]$CheckOnly)
+param([switch]$CheckOnly, [string]$PythonPath)
 $ErrorActionPreference = 'Stop'
-$pythonLauncher = Get-Command py -ErrorAction Stop
-$codexCommand = Get-Command codex -ErrorAction Stop
-$installArgs = @('-3.14', (Join-Path $PSScriptRoot 'scripts/install_plugin.py'), '--codex', $codexCommand.Source)
-if ($CheckOnly) { $installArgs += '--check' }
-& $pythonLauncher.Source @installArgs
-exit $LASTEXITCODE
+. (Join-Path $PSScriptRoot 'scripts/find_python.ps1')
+try {
+    $pythonExecutable = Find-WordBridgePython -PythonPath $PythonPath
+    $codexCommand = Get-Command codex -ErrorAction Stop
+    Write-Host "Python: $pythonExecutable"
+    $installArgs = @((Join-Path $PSScriptRoot 'scripts/install_plugin.py'), '--codex', $codexCommand.Source)
+    if ($CheckOnly) { $installArgs += '--check' }
+    & $pythonExecutable @installArgs
+    exit $LASTEXITCODE
+} catch {
+    Write-Error -ErrorAction Continue $_.Exception.Message
+    exit 1
+}

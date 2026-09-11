@@ -11,7 +11,7 @@ import build_plugin
 
 class PluginPackageTests(unittest.TestCase):
     def test_versions_match(self):
-        self.assertEqual(build_plugin.package_version(build_plugin.ROOT), "0.3.0-dev")
+        self.assertEqual(build_plugin.package_version(build_plugin.ROOT), "0.3.0")
 
     def test_package_contains_exact_allowlist_and_skill(self):
         with tempfile.TemporaryDirectory() as directory:
