@@ -4,9 +4,29 @@
 
 产品显示名称为 **WordBridge Plugin**，仓库与插件技术标识为 `wordbridge-plugin`。仓库已由 `wordbridge-mcp` 改名，本地开发目录及 MCP 启动路径同步迁移；MCP 连接、Skill 标识 `wordbridge` 和工具名保持不变。
 
-当前为 `0.2.2-dev` 开发验证版本，仅支持 Windows 桌面 Word 和已保存本地 .docx 的普通正文场景。没有替换选区、文档枚举或自动撤销工具，也不支持网页版 Word、macOS 和 Linux。尚未发布安装包或建立完整客户端兼容性矩阵。
+当前为 `0.3.0-dev` 开发验证版本，仅支持 Windows 桌面 Word 和已保存本地 .docx 的普通正文场景。没有替换选区、文档枚举或自动撤销工具，也不支持网页版 Word、macOS 和 Linux。本次为预发布测试包，完整客户端兼容性矩阵仍待建立。
 
 ## 环境与安装
+
+### Codex 统一安装与升级入口（试验）
+
+前提：Windows、64 位 Python 3.14（`py -3.14` 可用）、Codex CLI（`codex` 可用）及联网下载依赖。使用 Word 工具时还需要桌面 Word。
+取得并检查源码后，在项目根目录 PowerShell 执行：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
+```
+
+只检查前提、不安装：在命令末尾加 `-CheckOnly`。Bypass 仅作用于此次 PowerShell 进程，不修改系统策略。
+脚本会创建用户级独立运行环境、安装 requirements.txt 依赖、进行不调用 Word 的 MCP 握手检查，然后通过 Codex CLI 一次安装 Skill 和 MCP 配置。不需要管理员权限，不向全局 skills 目录复制 Skill。
+安装完成后新建 Codex 任务，检查插件 Skill 和工具是否出现，再请求“用 WordBridge Plugin 检查连接，只调用 word_status”。
+同一个入口自动判断：未安装则安装；发现更高版本则显示旧版 → 新版并升级；同版本提示无需更新；拒绝降级。
+升级先准备和检查独立新版环境，再同步切换 MCP 与 Skill；失败尝试恢复旧版并核对注册与缓存，旧运行目录保留。
+用户已确认本机 0.2.2-dev 首次安装和使用跑通。0.3.0-dev 更新流程已完成模拟测试、真实只读升级预检及 MCP 握手检查，真实客户端升级仍待验收。
+脚本使用所在目录的版本，不自动下载最新包；更新前须先取得新版源码或发布包。
+目录、失败处理及边界见 [安装说明](docs/插件打包与更新.md)。
+
+### 手动开发环境 / 其他 MCP 客户端
 
 当前验证环境为 Python 3.14.7（64 位）和桌面 Word 16.0；其他版本尚未系统验收。取得源码后，在项目根目录的 PowerShell 中运行：
 
@@ -81,9 +101,9 @@ py -3.14 -m venv .venv
 
 ## 项目文档
 
-- [最小插件包设计与构建](docs/插件打包与更新.md)：MCP 与 Skill 同包分发的实验结构，尚未完成安装、依赖准备和更新验收；不影响现有独立 MCP 配置。
+- [最小插件包设计与构建](docs/插件打包与更新.md)：MCP 与 Skill 同包分发、统一安装升级入口、失败恢复与验收边界。
 
-产品配套的最小 [WordBridge Plugin Skill](skills/wordbridge/SKILL.md) 提供工具发现、任务路由和安全调用指引。已建立 MCP 与 Skill 同包分发的插件结构，但完整安装、更新和跨模型触发仍待验收。仅把文件放在仓库里不会自动启用；Skill 不负责安装 Python、Word 或 MCP 服务。
+产品配套的最小 [WordBridge Plugin Skill](skills/wordbridge/SKILL.md) 提供工具发现、任务路由和安全调用指引。MCP 与 Skill 同包分发，首次安装已在本机验证；新版升级和跨模型触发的真实客户端验收仍待完成。仅把文件放在仓库里不会自动启用；Skill 不负责安装 Python、Word 或 MCP 服务。
 
 - [开发规范](AGENTS.md)
 - [更新日志](CHANGELOG.md)

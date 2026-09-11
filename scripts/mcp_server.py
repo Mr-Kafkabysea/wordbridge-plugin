@@ -70,7 +70,7 @@ def create_server(status=None) -> MCPServer:
 
     server = MCPServer(
         "WordBridge Plugin",
-        version="0.2.2-dev",
+        version="0.3.0-dev",
         lifespan=status.lifespan if status else None,
         middleware=[status] if status else None,
         instructions=(
