@@ -55,18 +55,24 @@ class AppendApproval(BaseModel):
     confirm: StrictBool = Field(title="我确认追加上述文字到上述文档")
 
 
-def create_server() -> MCPServer:
+def create_server(status=None) -> MCPServer:
     # Serialize complete COM calls, including initialization and cleanup.
     # The lock is never held while waiting for the user's confirmation.
     com_lock = Lock()
 
     def invoke(operation, *args, **kwargs):
         with com_lock:
+            if status:
+                first = status.first_contact(check_word_connection)
+                if first is not None and operation is check_word_connection:
+                    return first
             return operation(*args, **kwargs)
 
     server = MCPServer(
         "WordBridge MCP",
-        version="0.2.1-dev",
+        version="0.2.2-dev",
+        lifespan=status.lifespan if status else None,
+        middleware=[status] if status else None,
         instructions=(
             "Operate only on existing active Word documents. Never open, "
             "switch, save or close documents. Preview append_text first, then "
@@ -89,7 +95,10 @@ def create_server() -> MCPServer:
         """
         # SDK v2 runs sync tools in a worker thread. The existing function
         # initializes and releases COM on that same thread and returns plain data.
-        return invoke(check_word_connection)
+        result = invoke(check_word_connection)
+        if status:
+            status.word_result(result)
+        return result
 
     @server.tool(
         title="识别当前文档",
@@ -185,4 +194,8 @@ server = create_server()
 
 if __name__ == "__main__":
     # stdout is the protocol channel: do not print diagnostic messages here.
-    server.run(transport="stdio")
+    if __package__:
+        from .connection_status import ConnectionStatus
+    else:
+        from connection_status import ConnectionStatus
+    create_server(ConnectionStatus(popup=True)).run(transport="stdio")
