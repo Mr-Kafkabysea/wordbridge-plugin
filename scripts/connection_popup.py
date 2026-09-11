@@ -15,7 +15,7 @@ def presentation(data, now):
     if state == "connected":
         if now - data.get("first_checked_at", 0) > 15:
             return "连接状态待确认", "首次检查结果已过期，请重新检查。", False
-        return "WordBridge 已就绪", "✓ MCP 通信正常\n✓ 已连接 Microsoft Word", True
+        return "WordBridge Plugin 已就绪", "✓ MCP 通信正常\n✓ 已连接 Microsoft Word", True
     if state == "not_available":
         return "MCP 已连接，Word 暂不可访问", "请确认桌面 Word 已打开且处于可访问的用户会话。\n随后可让 Agent 再检查 Word 状态。", False
     if state in {"com_error", "unknown"}:
@@ -25,12 +25,12 @@ def presentation(data, now):
 
 def create_popup(path):
     root = tk.Tk()
-    root.title("WordBridge")
+    root.title("WordBridge Plugin")
     root.geometry("520x260")
     root.resizable(False, False)
     frame = ttk.Frame(root, padding=24)
     frame.pack(fill="both", expand=True)
-    title = ttk.Label(frame, text="正在连接 WordBridge…", font=("Microsoft YaHei UI", 16, "bold"))
+    title = ttk.Label(frame, text="正在连接 WordBridge Plugin…", font=("Microsoft YaHei UI", 16, "bold"))
     title.pack(anchor="w", pady=(0, 14))
     detail = ttk.Label(frame, text="等待连接检查结果", wraplength=470, font=("Microsoft YaHei UI", 10))
     detail.pack(anchor="w")

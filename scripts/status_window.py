@@ -11,12 +11,12 @@ else:
 
 def create_window():
     root = tk.Tk()
-    root.title("WordBridge · 连接状态")
+    root.title("WordBridge Plugin · 连接状态")
     root.geometry("1120x360")
     root.minsize(900, 320)
     frame = ttk.Frame(root, padding=20)
     frame.pack(fill="both", expand=True)
-    ttk.Label(frame, text="WordBridge 连接状态", font=("Microsoft YaHei UI", 18, "bold")).pack(anchor="w")
+    ttk.Label(frame, text="WordBridge Plugin 连接状态", font=("Microsoft YaHei UI", 18, "bold")).pack(anchor="w")
     ttk.Label(frame, text="每个服务实例单独显示 · 每 2 秒刷新 · 此窗口不连接或修改 Word").pack(anchor="w", pady=(6, 16))
     columns = ("进程", "服务", "MCP 客户端", "Word", "Word 检查时间", "最近收到的工具", "调用时间")
     tree = ttk.Treeview(frame, columns=columns, show="headings", height=5)

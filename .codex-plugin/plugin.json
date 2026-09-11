@@ -1,0 +1,19 @@
+{
+  "name": "wordbridge-plugin",
+  "version": "0.2.2-dev",
+  "description": "WordBridge Plugin bundles Windows desktop Word MCP tools, a companion skill, and connection status UI. Experimental package.",
+  "author": {
+    "name": "Mr-Kafkabysea"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "WordBridge Plugin",
+    "shortDescription": "Connect to desktop Word with guided tools.",
+    "longDescription": "Read active Word document metadata and selected text; append text only after human confirmation. Windows desktop Word and a separately prepared Python environment are required. Plugin installation is not yet validated.",
+    "developerName": "Mr-Kafkabysea",
+    "category": "Productivity",
+    "capabilities": ["Read", "Write"],
+    "defaultPrompt": "Use WordBridge Plugin to check the Word connection without modifying the document."
+  },
+  "mcpServers": "./.mcp.json"
+}

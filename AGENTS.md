@@ -1,4 +1,4 @@
-# WordBridge MCP 项目入口
+# WordBridge Plugin 项目入口
 
 处理本项目任务前：
 

@@ -1,11 +1,11 @@
 ---
 name: wordbridge
-description: Use WordBridge MCP to check desktop Word, identify its active document, read selected text, or append text with confirmation. Use when the user requests WordBridge (Word Bridge / wordbridge) operations, or asks to read or edit the currently open Word document through available WordBridge tools. Not for offline DOCX generation, general Word advice, or developing WordBridge source code; respect an explicitly requested different tool.
+description: Use WordBridge Plugin's MCP tools to check desktop Word, identify its active document, read selected text, or append text with confirmation. Use when the user requests WordBridge Plugin (WordBridge / Word Bridge / wordbridge) operations, or asks to read or edit the currently open Word document through available WordBridge tools. Not for offline DOCX generation, general Word advice, or developing WordBridge source code; respect an explicitly requested different tool.
 ---
 
-# WordBridge
+# WordBridge Plugin
 
-Use the existing WordBridge MCP connection for live Word operations. This skill guides tool selection; it does not install, start, or grant access to the service.
+WordBridge Plugin combines MCP tools, this companion skill, and connection status UI. Use the existing WordBridge MCP connection for live Word operations. The stable skill and connection identifier remains `wordbridge`. This skill guides tool selection; it does not install, start, or grant access to the service.
 
 ## Discover before choosing a fallback
 
