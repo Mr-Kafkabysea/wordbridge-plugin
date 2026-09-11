@@ -66,7 +66,7 @@ def create_server() -> MCPServer:
 
     server = MCPServer(
         "WordBridge MCP",
-        version="0.2.0-dev",
+        version="0.2.1-dev",
         instructions=(
             "Operate only on existing active Word documents. Never open, "
             "switch, save or close documents. Preview append_text first, then "

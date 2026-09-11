@@ -2,7 +2,7 @@
 
 通过本地 MCP 服务连接正在运行的 Microsoft Word，读取当前文档及选区，并在用户确认后追加文字。
 
-当前为 `0.2.0-dev` 开发验证版本，仅支持 Windows 桌面 Word 和已保存本地 .docx 的普通正文场景。没有替换选区、文档枚举或自动撤销工具，也不支持网页版 Word、macOS 和 Linux。尚未发布安装包或建立完整客户端兼容性矩阵。
+当前为 `0.2.1-dev` 开发验证版本，仅支持 Windows 桌面 Word 和已保存本地 .docx 的普通正文场景。没有替换选区、文档枚举或自动撤销工具，也不支持网页版 Word、macOS 和 Linux。尚未发布安装包或建立完整客户端兼容性矩阵。
 
 ## 环境与安装
 
@@ -58,6 +58,8 @@ py -3.14 -m venv .venv
 目录放开不等于正式文档已验收。建议先使用文档副本；下方 `test-documents` 路径是安全练习示例，不是程序的目录白名单。
 
 ## 项目文档
+
+产品配套的最小 [WordBridge Skill](skills/wordbridge/SKILL.md) 提供工具发现、任务路由和安全调用指引。它与 MCP 服务分开加载，仅把文件放在仓库里不会自动启用；当前未打包成插件，也未完成跨模型触发验收。Skill 不负责安装 Python、Word 或 MCP 服务。
 
 - [开发规范](AGENTS.md)
 - [更新日志](CHANGELOG.md)
