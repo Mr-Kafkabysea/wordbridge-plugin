@@ -46,15 +46,15 @@ class MCPServerTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIsNotNone(tool.output_schema)
                 required = [set(), set(), set(),
                             {"expected_document", "text"},
-                            {"expected_document", "text", "expected_state"}]
+                            {"expected_document", "text"}, {"mode_name"}, set(), {"expected_document", "text"}, {"expected_document", "text"}]
                 for index, tool in enumerate(result.tools):
                     self.assertEqual(set(tool.input_schema.get("required", [])), required[index])
                     self.assertNotIn("ctx", tool.input_schema.get("properties", {}))
                     self.assertNotIn("approval", tool.input_schema.get("properties", {}))
                     self.assertIsNotNone(tool.output_schema)
-                    self.assertEqual(tool.annotations.read_only_hint, index != 4)
-                self.assertFalse(result.tools[-1].annotations.idempotent_hint)
-                self.assertTrue(result.tools[-1].annotations.destructive_hint)
+                    self.assertEqual(tool.annotations.read_only_hint, index not in {4, 5, 8})
+                self.assertFalse(result.tools[4].annotations.idempotent_hint)
+                self.assertTrue(result.tools[4].annotations.destructive_hint)
             backend.assert_not_called()
             document.assert_not_called()
             append.assert_not_called()

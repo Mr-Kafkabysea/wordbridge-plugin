@@ -22,7 +22,7 @@ async def check_mcp(expected_document: str | None = None,
         tools = await client.list_tools()
         names = [tool.name for tool in tools.tools]
         if names != ["word_status", "get_active_document", "get_selection",
-                     "preview_append_text", "append_text"]:
+                     "preview_append_text", "append_text", "set_mode", "get_mode", "preview_insert_text", "insert_text"]:
             raise RuntimeError("Unexpected MCP tool list")
         result = await client.call_tool("word_status", {})
         if result.is_error or not isinstance(result.structured_content, dict):

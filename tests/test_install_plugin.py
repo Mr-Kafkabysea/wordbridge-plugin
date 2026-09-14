@@ -65,8 +65,16 @@ class InstallerTests(unittest.TestCase):
             path.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(installer.ROOT / relative, path)
         self.set_version('0.2.2-dev')
+        self.enterContext(contextlib.chdir(self.source))
         self.fake = FakeCommands()
         self.addCleanup(patch.stopall)
+        # Ancestor config scans must see fixture files, not this developer's profile.
+        real_is_file = Path.is_file
+        def fixture_is_file(path):
+            if path.name == 'config.toml' and path.parent.name == '.codex' and not path.is_relative_to(self.base):
+                return False
+            return real_is_file(path)
+        patch.object(Path, 'is_file', fixture_is_file).start()
         patch.object(installer, 'run', self.fake).start()
         patch.object(installer, 'codex_prefix', return_value=['codex.exe']).start()
         patch.dict(os.environ, {'WINDIR': 'C:\\Windows', 'CODEX_HOME': str(self.profile / '.codex')}).start()

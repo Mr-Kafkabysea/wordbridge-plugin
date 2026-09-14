@@ -101,7 +101,7 @@ class StatusTests(unittest.IsolatedAsyncioTestCase):
             file.touch()
             async with Client(create_server(ConnectionStatus(file))) as client:
                 result = await client.list_tools()
-                self.assertEqual(len(result.tools), 5)
+                self.assertEqual(len(result.tools), 9)
 
     def test_stale_heartbeat_is_not_shown_online(self):
         data = {'service': 'running', 'mcp': 'initialized', 'heartbeat': 100,

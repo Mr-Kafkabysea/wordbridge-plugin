@@ -71,16 +71,53 @@ def _snapshot(document, expected: Path, text: str) -> dict:
         content = None
 
 
-def append_text(expected_document: Path, text: str, *, apply=False, expected_state=None) -> dict:
+def _cursor_position(word, expected: Path, document_end: int) -> int:
+    selection = selected = owner = None
+    try:
+        selection = word.Selection
+        selected = selection.Range.Duplicate
+        owner = selected.Document
+        if not str(owner.Path) or Path(str(owner.FullName)).resolve() != expected:
+            raise Refused("selection_document_mismatch")
+        if int(selected.StoryType) != 1:
+            raise Refused("unsupported_cursor_story")
+        start, end = int(selected.Start), int(selected.End)
+        if start != end:
+            raise Refused("selection_not_collapsed")
+        if int(selection.Type) != 1 or not 0 <= start < document_end:
+            raise Refused("invalid_cursor")
+        if bool(selected.Information(12)):
+            raise Refused("cursor_in_table")
+        return start
+    finally:
+        owner = selected = selection = None
+
+
+def _cursor_state(snapshot, position):
+    return hashlib.sha256(json.dumps(
+        ["insert_at_cursor", snapshot["state"], position],
+        separators=(",", ":")).encode("ascii")).hexdigest()
+
+
+def insert_at_cursor(expected_document: Path, text: str, *, apply=False,
+                     expected_state=None, quick=False) -> dict:
+    """Insert only at a collapsed body cursor; never replace selected text."""
+    return append_text(expected_document, text, apply=apply,
+                       expected_state=expected_state, quick=quick, at_cursor=True)
+
+
+def append_text(expected_document: Path, text: str, *, apply=False, expected_state=None, quick=False, at_cursor=False) -> dict:
     """Default to preview. An explicit apply must match the preview state.
 
     The state digest detects changes; it is NOT a user-authorization token.
     The invoking client/operator must obtain approval before requesting apply.
+    quick=True is internal to an explicitly enabled MCP fast mode, not a CLI option.
+    It skips a prior preview, retaining same-call snapshots and all write checks.
     """
     try:
         text = _normalize_text(text)
         expected = document_file_path(expected_document)
-        if apply and not expected_state:
+        if apply and not quick and not expected_state:
             raise Refused("preview_required")
     except Refused as error:
         return {"status": str(error), "write_attempted": False}
@@ -107,7 +144,10 @@ def append_text(expected_document: Path, text: str, *, apply=False, expected_sta
         document = word.ActiveDocument
         stage = "snapshot"
         snapshot = _snapshot(document, expected, text)
-        position = snapshot["end"] - 1  # Before Word's mandatory final paragraph mark.
+        position = (_cursor_position(word, expected, snapshot["end"]) if at_cursor
+                    else snapshot["end"] - 1)
+        preview_state = _cursor_state(snapshot, position) if at_cursor else snapshot["state"]
+        undo_name = "WordBridge insert at cursor" if at_cursor else UNDO_NAME
         insertion = document.Range(position, position)
         if bool(insertion.Information(12)):  # wdWithInTable
             raise Refused("document_ends_in_table")
@@ -120,11 +160,11 @@ def append_text(expected_document: Path, text: str, *, apply=False, expected_sta
             "position": position,
             "text": text,
             "character_count": len(text),
-            "state": snapshot["state"],
+            "state": preview_state,
             "write_attempted": False,
         }
         if apply:
-            if expected_state != snapshot["state"]:
+            if not quick and expected_state != preview_state:
                 raise Refused("stale_preview")
             # Recheck the active target and captured document just before writing.
             active_check = word.ActiveDocument
@@ -134,8 +174,10 @@ def append_text(expected_document: Path, text: str, *, apply=False, expected_sta
                 raise Refused("stale_preview")
             if int(insertion.Start) != position or int(insertion.End) != position:
                 raise Refused("stale_preview")
+            if at_cursor and _cursor_position(word, expected, snapshot["end"]) != position:
+                raise Refused("stale_preview")
             stage = "start_undo_record"
-            undo.StartCustomRecord(UNDO_NAME)
+            undo.StartCustomRecord(undo_name)
             started_record = True
             stage = "insert"
             write_attempted = True
@@ -151,12 +193,25 @@ def append_text(expected_document: Path, text: str, *, apply=False, expected_sta
                     "message": "Inspect Word before retrying; the append may already exist.",
                 }
             else:
+                cursor_advanced = False
+                if at_cursor:
+                    # Do not reclaim a cursor the user moved during the operation.
+                    stage = "advance_cursor"
+                    try:
+                        live_position = _cursor_position(word, expected, snapshot["end"] + inserted_end - position)
+                    except Refused:
+                        live_position = None
+                    if live_position in (position, inserted_end):
+                        word.Selection.SetRange(inserted_end, inserted_end)
+                        cursor_advanced = True
                 result = {
-                    "status": "appended", "full_path": str(expected),
+                    "status": "inserted" if at_cursor else "appended", "full_path": str(expected),
                     "start": position, "end": inserted_end,
-                    "character_count": len(text), "undo_name": UNDO_NAME,
+                    "character_count": len(text), "undo_name": undo_name,
                     "write_attempted": True,
                 }
+                if at_cursor:
+                    result["cursor_advanced"] = cursor_advanced
     except Refused as error:
         result = {"status": str(error), "write_attempted": write_attempted}
     except pywintypes.com_error as error:

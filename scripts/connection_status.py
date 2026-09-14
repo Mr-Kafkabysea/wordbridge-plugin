@@ -99,7 +99,7 @@ class ConnectionStatus:
             name = (ctx.params or {}).get("name")
             # Only our known tool names; never persist arbitrary client input.
             if name in {"word_status", "get_active_document", "get_selection",
-                        "preview_append_text", "append_text"}:
+                        "preview_append_text", "append_text", "set_mode", "get_mode", "preview_insert_text", "insert_text"}:
                 self.update(last_tool=name, last_tool_at=time.time())
         result = await call_next(ctx)
         if ctx.method == "initialize":

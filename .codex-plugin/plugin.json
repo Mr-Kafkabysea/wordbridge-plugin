@@ -1,7 +1,7 @@
 {
   "name": "wordbridge-plugin",
-  "version": "0.3.0",
-  "description": "WordBridge Plugin bundles Windows desktop Word MCP tools, a companion skill, and connection status UI. First public MVP.",
+  "version": "0.5.0",
+  "description": "WordBridge Plugin bundles Windows desktop Word MCP tools, a companion skill, and connection status UI. Persistent fast mode and cursor insertion.",
   "author": {
     "name": "Mr-Kafkabysea"
   },
@@ -9,7 +9,7 @@
   "interface": {
     "displayName": "WordBridge Plugin",
     "shortDescription": "Connect to desktop Word with guided tools.",
-    "longDescription": "Read active Word document metadata and selected text; append text only after human confirmation. Windows desktop Word and a separately prepared Python environment are required. Installation and upgrade were verified on Windows; supported scope is saved local DOCX body text.",
+    "longDescription": "Read active Word document metadata and selected text; append or insert at a body cursor with confirmation in normal mode or directly after the user explicitly enables session fast mode. Windows desktop Word and a separately prepared Python environment are required. Installation and upgrade were verified on Windows; supported scope is saved local DOCX body text.",
     "developerName": "Mr-Kafkabysea",
     "category": "Productivity",
     "capabilities": ["Read", "Write"],

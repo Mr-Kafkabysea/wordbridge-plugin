@@ -17,10 +17,10 @@ async def check():
         if client.server_info is None or client.server_info.version != version:
             raise RuntimeError('Running MCP version does not match the plugin manifest')
         expected = {'word_status', 'get_active_document', 'get_selection',
-                    'preview_append_text', 'append_text'}
+                    'preview_append_text', 'append_text', 'set_mode', 'get_mode', 'preview_insert_text', 'insert_text'}
         if {tool.name for tool in result.tools} != expected:
             raise RuntimeError('Unexpected MCP tools')
-        print(f'MCP {version} handshake and five tool schemas: OK. Word was not accessed.')
+        print(f'MCP {version} handshake and nine tool schemas: OK. Word was not accessed.')
 
 
 if __name__ == '__main__':

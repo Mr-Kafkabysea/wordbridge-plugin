@@ -1,218 +1,96 @@
 # WordBridge Plugin
 
-面向 Windows 桌面 Word 的插件项目，包含 MCP 操作工具、配套 Skill 和连接状态提示。通过本地 MCP 服务读取当前文档及选区，并在用户确认后追加文字。
+通过本地 MCP 操作 Windows 桌面 Word，附带配套 Skill、连接提示和安装升级入口。当前版本 **0.5.0**，采用 MIT 许可证。
 
-产品显示名称为 **WordBridge Plugin**，仓库与插件技术标识为 `wordbridge-plugin`。仓库已由 `wordbridge-mcp` 改名，本地开发目录及 MCP 启动路径同步迁移；MCP 连接、Skill 标识 `wordbridge` 和工具名保持不变。
+## 可以做什么
 
-当前为首个公开 MVP `0.3.0`，仅支持 Windows 桌面 Word 和已保存本地 .docx 的普通正文场景。没有替换选区、文档枚举或自动撤销工具，也不支持网页版 Word、macOS 和 Linux。已在本机验证安装、升级和连接；其他电脑与复杂文档的兼容性仍待验证。
+| 功能 | 工具 |
+| --- | --- |
+| 检查 Word 连接 | word_status |
+| 识别当前文档 | get_active_document |
+| 读取正文选中文字 | get_selection |
+| 预览／执行光标插入 | preview_insert_text / insert_text |
+| 预览／执行文末追加 | preview_append_text / append_text |
+| 切换／查询普通与快速模式 | set_mode / get_mode |
 
-## 环境与安装
+**未指定位置的“写入／添加／插入／追加文字”默认在光标处插入；只有明确要求“追加到末尾／放到文末”才使用文末追加。** 光标插入不可用或被拒绝时，不自动改到文末。
 
-### 下载、安装与升级
+- 普通模式：先预览，客户端向用户展示确认表单，确认后执行。
+- “开启快速模式”：调用 set_mode(mode_name="fast")，后续明确请求的插入或追加跳过独立预览和逐次表单。
+- “切回普通模式”：调用 set_mode(mode_name="normal")，恢复预览和确认。
+- 模式保存在当前 MCP 服务进程中，重启默认普通；其他独立进程不共享模式。切换模式不访问或写入 Word。
+- 写入成功后形成一个 Word 原生撤销步骤，不自动保存、关闭或切换文档，不自动重试不确定的写入。
 
-前提：Windows、64 位 Python 3.14（支持 `py -3.14`、`python` 或显式路径）、Codex CLI（`codex` 可用）及联网下载依赖。使用 Word 工具时还需要桌面 Word。
-从 [Releases](https://github.com/Mr-Kafkabysea/wordbridge-plugin/releases) 下载对应版本的插件 ZIP 与 SHA256SUMS.txt，校验并解压。在包含 install.ps1 的目录打开 PowerShell 执行：
+## 安装与更新
+
+需要 Windows、64 位 Python 3.14、Codex CLI；实际使用需要桌面 Word。已验证的开发环境为 Python 3.14.7、Word 16.0。其他环境不能视为已验证。
+
+从 [GitHub Releases](https://github.com/Mr-Kafkabysea/wordbridge-plugin/releases) 下载插件 ZIP 和 SHA256SUMS.txt，校验 ZIP 后解压。在包含 install.ps1 的目录运行：
 
 ```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -CheckOnly
 powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-只检查前提、不安装：在命令末尾加 `-CheckOnly`。
-若已安装 Python 但无法自动找到，在命令末尾加 `-PythonPath "C:\实际安装目录\python.exe"`。入口会实际检查 Python 版本和位数，坏的 py Launcher 会继续尝试 python 和 python3。Bypass 仅作用于此次 PowerShell 进程，不修改系统策略。
-脚本会创建用户级独立运行环境、安装 requirements.txt 依赖、进行不调用 Word 的 MCP 握手检查，然后通过 Codex CLI 一次安装 Skill 和 MCP 配置。不需要管理员权限，不向全局 skills 目录复制 Skill。
-安装完成后新建 Codex 任务，检查插件 Skill 和工具是否出现，再请求“用 WordBridge Plugin 检查连接，只调用 word_status”。
-同一个入口自动判断：未安装则安装；发现更高版本则显示旧版 → 新版并升级；同版本提示无需更新；拒绝降级。
-升级先准备和检查独立新版环境，再同步切换 MCP 与 Skill；失败尝试恢复旧版并核对注册与缓存，旧运行目录保留。
-本机已验证首次安装，以及 0.2.2-dev → 0.3.0-dev 的发布 ZIP 校验、升级、工具加载和同版本重复执行。测试暴露的 Python Launcher 检测问题已在 0.3.0 修复；0.3.0 自身的用户侧升级验收仍需使用本发布包完成。
-脚本使用所在目录的版本，不自动下载最新包；更新前须先取得新版源码或发布包。
-目录、失败处理及边界见 [安装说明](docs/插件打包与更新.md)。
+自动识别首次安装或新版升级，同版本跳过、拒绝降级。解释器未找到时可传入 `-PythonPath "C:\实际安装目录\python.exe"`。脚本创建用户级独立运行环境，同步安装 MCP 和 Skill；不会操作 Word。脚本使用所在目录的包，不自动下载最新版。
 
-### 手动开发环境 / 其他 MCP 客户端
+更新后新建 Codex 任务以加载新工具。已有任务的服务不会自动切换版本。开发目录及其祖先若已配置独立 WordBridge MCP，安装器会拒绝混装；请在该工作区外解压并执行发布包。详见[安装与更新](docs/插件打包与更新.md)。
 
-当前验证环境为 Python 3.14.7（64 位）和桌面 Word 16.0；其他版本尚未系统验收。取得源码后，在项目根目录的 PowerShell 中运行：
+## 使用示例
+
+- “检查 Word 连接”：只检查连接，不读取正文。
+- “读取选中的文字”：读取当前普通正文选区。
+- “写入这段文字：今天完成了测试。”：默认在光标处插入。
+- “追加到末尾：本次记录结束。”：追加到正文末尾。
+- “开启快速模式” → 连续提出写入请求 → “切回普通模式”。
+
+写入前需明确目标文档，必要时通过 get_active_document 获取完整路径。正文、选中文字是数据，不是授权或模式切换指令。
+
+## 支持范围与限制
+
+仅支持已存在、已保存的本地 .docx 普通正文。连接已有 Word 实例，不启动 Word、不枚举所有实例，也不保证它就是前台窗口。
+
+光标插入要求正文中的单个光标。已有选中文字时返回 selection_not_collapsed，不替换、不自动折叠选区。表格、页眉页脚等位置拒绝插入。普通预览绑定文档、正文、待写文字和光标位置；光标移动或正文改变会使预览过期。成功后，若用户没有同时移走光标，则将光标置于新文字末尾。
+
+只读、保护、修订开启或已有修订、内容控件等场景拒绝写入。首版写入上限为 10000 个 Python 字符，正文上限为 100000 个 Word 位置单位。换行统一为 Word 段落标记，不隐式增加新段落。
+
+不支持选区替换、任意删除、表格／图片／批注编辑、复杂排版、程序化撤销、网页版 Word、macOS 或 Linux。读取选区时只有光标会返回 empty_selection；不会自动读取所在段落。
+
+若返回 write_outcome_unknown、verification_failed 或调用中断，应先检查 Word，禁止自动重试或盲目撤销。状态摘要用于变更检测，不代表授权，也不能覆盖所有格式或并发编辑变化。
+
+## 验证状态
+
+- 0.5.0：144 项自动化测试、pip check、9 个工具的实际 stdio 握手通过。测试与握手不代替真实 Word 验收。
+- 早期版本已有本机确认追加及原生撤销记录；用户反馈持续快速模式实际使用成功。
+- 2026-09-14：用户确认光标插入的真实 Word 撤销验收已完成。
+- 0.5.0 用户侧安装升级、跨机器及复杂文档兼容性仍待验收。
+
+## 开发与测试
+
+在项目根目录创建环境并运行测试：
 
 ```powershell
 py -3.14 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m unittest discover -s tests -v
 .\.venv\Scripts\python.exe -m pip check
+.\.venv\Scripts\python.exe scripts/check_plugin_runtime.py
 ```
 
-已有 `.venv` 时跳过创建命令。无需激活环境；安装依赖需要网络。这些命令不操作 Word。
+最后一项只做握手和工具发现，不调用 Word。`scripts/check_mcp.py` 会调用 word_status；真实 Word 测试使用专门文档，见 [test-documents](test-documents/README.md)。
 
-## 配置 MCP 客户端
+开发连接可直接指向 `.venv/Scripts/python.exe` 与 `scripts/mcp_server.py`。使用单独的服务名区分安装版；修改代码后重新启动开发服务，修改接口后刷新工具列表。配套 Skill 位于 [skills/wordbridge/SKILL.md](skills/wordbridge/SKILL.md)，不能只更新 MCP 而继续按旧 Skill 路由。
 
-客户端需要支持本地 stdio MCP 服务；写入还要求支持并向真实用户展示确认表单。以下是启动参数，不是特定客户端的配置文件。将 `<项目绝对路径>` 替换为实际路径：
+## 连接提示
 
-| 设置 | 内容 |
-| --- | --- |
-| 服务名称 | `wordbridge` |
-| 传输方式 | `stdio` |
-| 启动程序 | `<项目绝对路径>\.venv\Scripts\python.exe` |
-| 参数列表 | 一个参数：`<项目绝对路径>\scripts\mcp_server.py` |
-| 工作目录（若支持） | `<项目绝对路径>` |
-| 环境 | 保留 Windows Python 所需系统环境，包括 `WINDIR` |
-
-脚本路径应作为单个参数传入。Word 和服务需在可相互访问的用户会话中运行。程序不自动启动 Word、打开文件或切换当前文档。直接运行服务会等待协议消息，没有普通终端输出是正常现象。
-
-先完成下方只读检查，再测试确认写入。客户端不得自动同意确认；不支持确认的客户端不能写入。
-
-## 已有工具
-
-### 连接提示与本地状态窗口（试验功能）
-
-新版服务在每个实例首次有效工具调用时自动弹出简洁连接提示，并只读检查一次 Word 连接（不读取正文）。仅启动服务、握手或列出工具不会弹出。成功显示“WordBridge Plugin 已就绪”，3 秒后自动关闭；失败提示保留，可手动关闭。同一实例后续调用不再自动弹出，但仍执行原有安全检查。多个服务实例可能各弹一次。
-这不是写入批准弹窗，不会代替人工确认。首次连接成功不是持续在线保证，也不代表当前文档可编辑。弹窗启动失败不阻断 MCP 工具执行。
-
-详细状态面板保留为手动诊断入口。在项目根目录运行以下命令打开：
-
-```powershell
-.\.venv\Scripts\pythonw.exe scripts/status_window.py
-```
-
-窗口不启动 MCP 服务、不调用 Word，也不显示正文。先重新加载使用本项目脚本的 MCP 服务，窗口才能收到新版服务的状态。
-每个 stdio 服务实例独立一行，显示进程、服务心跳、MCP 握手/请求状态和最近收到的工具名称及时间。
-首次有效调用自动检查一次 Word，后续 `word_status` 更新 Word 检查结果；这只是上次检查的快照，不表示持续在线。握手成功不证明 Agent 已调用工具，收到调用也不代表操作成功。
-关闭窗口不停止 MCP；服务正常退出显示已停止，超过 15 秒没有心跳显示状态未知，不将旧状态当作在线。
-状态文件位于本项目被 Git 忽略的 `local/runtime/connections/`，不记录工具参数、文档路径、正文或模型名称；旧实例记录会保留。
-不同项目副本各自显示其状态文件，不混用开发和验收环境。文件不可写时 MCP 仍可运行，但窗口可能没有记录或显示过期。
-
-| 工具 | 用途 | 写入 |
-| --- | --- | --- |
-| `word_status` | 检查可访问的 Word COM 实例 | 否 |
-| `get_active_document` | 核对当前文档与期望路径 | 否 |
-| `get_selection` | 读取当前普通正文选区 | 否 |
-| `preview_append_text` | 预览文末追加及状态摘要 | 否 |
-| `append_text` | 用户确认后追加文字 | 是 |
-
-## 已验证能力与限制
-
-- 本机 Windows、Python 3.14.7（64 位）、Word 16.0；Codex 的本地 stdio MCP。
-- 活动文档识别、普通正文选区读取、文末追加预览和人工确认写入。
-- 早期版本已真实验证追加和 Word 原生撤销；本机已验证首次安装、预发布版本升级及连接。
-- 0.3.0 的完整自动化测试、依赖检查、MCP 握手和安装预检通过。自动化测试不代替另一台电脑上的实际使用验收。
-- 不支持选区替换、程序化撤销、文档枚举、表格/图片/批注编辑及复杂格式。修订开启、编辑保护等场景会拒绝写入。
-- 不自动打开、切换、保存或关闭 Word 文档；人工确认是写入必需步骤。
-- 仅有光标时返回 empty_selection，不自动读取光标所在段落。读取接口可自动识别当前文档，写入需明确目标。
-- 尚未完成多客户端并发、跨模型全面兼容、复杂文档及跨电脑验证。
-
-初次使用请用文档副本。安装或升级后新建任务加载插件，旧服务不会自动切换版本。
+每个服务实例首次有效 Word 操作会弹出连接提示，成功约 3 秒后关闭，失败保留。握手、工具发现和模式切换不调用 Word。手动诊断窗口为 `scripts/status_window.py`，状态记录在被忽略的 local/runtime/connections 中，不含正文或工具参数。连接成功是一次快照，不代表持续在线或可编辑。
 
 ## 项目文档
 
-- [最小插件包设计与构建](docs/插件打包与更新.md)：MCP 与 Skill 同包分发、统一安装升级入口、失败恢复与验收边界。
-
-产品配套的最小 [WordBridge Plugin Skill](skills/wordbridge/SKILL.md) 提供工具发现、任务路由和安全调用指引。MCP 与 Skill 同包分发，首次安装及预发布版升级已在本机验证；跨模型全面兼容仍待验证。仅把文件放在仓库里不会自动启用；Skill 不负责安装 Python、Word 或 MCP 服务。
-
 - [开发规范](AGENTS.md)
 - [更新日志](CHANGELOG.md)
+- [使用反馈与改进记录](docs/使用反馈与改进记录.md)
+- [安装与更新](docs/插件打包与更新.md)
 - [第三方依赖](docs/第三方依赖.md)
 - [MCP 确认表单兼容性问题](docs/MCP确认表单兼容性问题.md)
-
-项目采用 [MIT License](LICENSE)。第三方依赖保留各自许可证，详见 [第三方依赖](docs/第三方依赖.md)。
-
-## 只读连接检查
-
-专用 Word 测试文件存放在 [test-documents/](test-documents/README.md)，自动化测试代码存放在 `tests/`。
-
-手动打开 Word（可新建空白文档并保存为 `test-documents/basic-selection.docx`），切换回终端，在项目根目录运行：
-
-```powershell
-.\.venv\Scripts\python.exe scripts/check_word_connection.py
-```
-
-- `connected`：已读取一个现有 Word 实例的版本，退出码为 0；不表示已识别所有 Word 实例或目标文档。
-- `not_available`：当前会话没有可访问的活动 Word COM 对象，退出码为 1；不能仅凭此状态断言 Word 未运行。
-- `com_error`：COM 初始化、连接或版本读取失败，输出阶段与 HRESULT 错误码，退出码为 1。
-
-模拟测试命令（不连接真实 Word）：
-
-```powershell
-.\.venv\Scripts\python.exe -m unittest discover -s tests -v
-```
-
-实现依据：微软 [GetActiveObject](https://learn.microsoft.com/en-us/windows/win32/api/oleauto/nf-oleauto-getactiveobject) 与 [Word Application.Version](https://learn.microsoft.com/en-us/office/vba/api/word.application.version) 文档。此连接程序独立编写，未提取第三方项目源码。
-
-## MCP 通信检查
-
-在项目根目录运行测试客户端，它会启动并关闭本地 MCP 服务，只调用 `word_status`：
-
-```powershell
-.\.venv\Scripts\python.exe scripts/check_mcp.py
-```
-
-当前服务入口为 `scripts/mcp_server.py`。已注册 `word_status`、`get_active_document`、`get_selection`、`preview_append_text` 和 `append_text`。前四个只读，最后一个需客户端向用户发起确认。
-
-通过 MCP 追加时，先调用 `preview_append_text(expected_document, text)` 获取 `state`，再用同一目标、文字和 `expected_state=state` 调用 `append_text`。服务重新检查预览，要求客户端展示确认表单；用户接受且勾选确认后，再次检查文档状态才写入。客户端不得自动同意。不支持确认的客户端拒绝写入；状态过期时重新预览，结果不确定时禁止自动重试。
-
-如需通过 MCP 检查真实测试文档及追加预览（仍不写入）：
-
-```powershell
-.\.venv\Scripts\python.exe scripts/check_mcp.py --expected-document "test-documents/basic-selection.docx" --preview-text "MCP 预览测试，不执行写入。"
-```
-
-`mcp_check=passed` 只表示协议调用完成；仍须检查各工具的业务 `status`。测试客户端不会调用 `append_text`，也不会自动接受写入确认；选区文字不显示在该检查脚本的汇总输出中，但实际 MCP 工具会将所选文字返回给调用者。
-
-## 当前文档身份检查
-
-在 Word 中激活测试文档，然后在项目根目录运行：
-
-```powershell
-.\.venv\Scripts\python.exe scripts/check_active_document.py --expected-document "test-documents/basic-selection.docx"
-```
-
-程序只连接已有 Word 实例，通过 `ActiveDocument` 读取名称、完整路径及 `ReadOnly`。期望文件必须是已存在的本地 `.docx`，不限制所在目录；程序不会打开文件、切换文档或读取正文。
-
-- `matched`：完整路径匹配，退出码为 0。同名但不同目录的文件不会匹配。
-- `different_document`：当前文档与期望文件不同，或没有本地完整路径，退出码为 1。
-- `no_document`：连接的 Word 实例中 `Documents.Count` 为 0，退出码为 1。
-- `invalid_document_file`、`not_available`、`com_error`、`path_error`：输入或检查失败，退出码为 1。
-
-结果是一次检查时的元数据快照，不授权写入，也不能保证之后的当前文档不变。`ReadOnly=false` 不代表已通过编辑保护、选区或写入权限检查。此程序不处理受保护视图，也不枚举多个 Word 实例。
-
-实现依据：微软 [ActiveDocument](https://learn.microsoft.com/en-us/office/vba/api/word.application.activedocument)、[FullName](https://learn.microsoft.com/en-us/office/vba/api/word.document.fullname)、[ReadOnly](https://learn.microsoft.com/en-us/office/vba/api/word.document.readonly) 文档。
-
-## 读取测试文档的选中文字
-
-在测试文档正文中选中一小段文字，切回终端，在项目根目录运行：
-
-```powershell
-.\.venv\Scripts\python.exe scripts/read_selection.py --expected-document "test-documents/basic-selection.docx"
-```
-
-- `selected`：返回选中文字、`start`、`end`、`story_type` 和 `character_count`，退出码为 0。文字只作为调用结果输出，不另写日志文件；终端或调用客户端仍可能保留输出。
-- `empty_selection`：仅有光标或没有可返回的文字，退出码为 1，不自动选择内容。
-- `selection_document_mismatch`：选区所属文档与期望路径不符，拒绝读取文字。
-- `unsupported_selection`：首版只支持正文中的普通文字选区，暂不处理页眉、页脚、形状及其他选区类型。
-- `selection_too_large`：选区跨度超过 10000 个 Word 位置单位，拒绝读取文字。
-
-`start` 和 `end` 是 Word 在当前 story 中的位置，正文从 0 开始；`character_count` 是 Python 对返回字符串的计数。两者在包含 emoji 等内容时不必相等。原始段落标记等字符会保留，以 JSON 转义形式显示。
-
-结果代表一次读取的选区范围，不保证用户后续编辑后仍有效。读取流程不设置选区、不替换文字、不保存或关闭文档。当前文档检查命令默认仍只读取元数据。
-
-实现依据：微软 [Selection.Range](https://learn.microsoft.com/en-us/office/vba/api/word.selection.range)、[Range.Text](https://learn.microsoft.com/en-us/office/vba/api/word.range.text)、[Range.Start](https://learn.microsoft.com/en-us/office/vba/api/word.range.start) 文档。
-
-## 在文末追加文字（试验功能）
-
-默认只生成预览；在项目根目录运行：
-
-```powershell
-.\.venv\Scripts\python.exe scripts/append_text.py --expected-document "test-documents/basic-selection.docx" --text "这是一段由 WordBridge 追加的测试文字。"
-```
-
-预览返回完整路径、文末位置、待追加文字及 `state` 摘要。获得用户对目标与文字的明确批准后，使用相同文字和预览返回的摘要执行：
-
-```powershell
-.\.venv\Scripts\python.exe scripts/append_text.py --expected-document "test-documents/basic-selection.docx" --text "这是一段由 WordBridge 追加的测试文字。" --apply --expected-state "<预览返回的 state>"
-```
-
-- 使用零长度 Range 在正文最后一个段落标记前插入，保留已有文字，不调用 Selection 替换。不会自动添加新段落；如需换段，应在输入文字中明确包含换行。
-- 不保存、不关闭文档，不切换或修改其他文档。输入的 LF/CRLF 换行统一为 Word 的 CR 段落标记。
-- 期望文件必须是已保存的本地 `.docx`，并与 Word 当前文档匹配。只读、编辑保护、受保护视图、修订记录/修订开启、内容控件或文末表格等场景暂不支持。
-- 试验阶段最多追加 10000 个 Python 字符，正文长度上限为 100000 个 Word 位置单位。预览会在内存读取目标文档正文以计算摘要，但不输出或保存原正文；待追加文字会显示在预览中。
-- `state` 绑定目标路径、正文、正文长度和待追加文字，用于检测预览过期，不代表用户批准，也不覆盖所有格式或外部协作变化。调用者仍负责取得用户批准；执行时请暂停编辑同一文档，不并行运行写入脚本。
-- 成功写入后检查新插入范围的文字，并使用 `WordBridge append text` 作为自定义撤销记录名称。撤销由用户在 Word 中执行；不保证视觉选区保持原样。
-- `stale_preview` 表示预览已过期，应重新预览。`write_outcome_unknown` 或 `verification_failed` 表示可能已经写入，应先检查 Word，禁止自动重试或盲目撤销。
-
-追加代码独立编写，未复制第三方项目代码，未新增依赖。实现依据：微软 [Range.InsertAfter](https://learn.microsoft.com/en-us/office/vba/api/word.range.insertafter)、[StartCustomRecord](https://learn.microsoft.com/en-us/office/vba/api/word.undorecord.startcustomrecord)、[EndCustomRecord](https://learn.microsoft.com/en-us/office/vba/api/word.undorecord.endcustomrecord) 文档。
-
-写入不确定、超时或连接中断时，先检查 Word，不自动重试。单服务实例串行调用 COM，但不能阻止用户或其他进程编辑；写入期间不要同时编辑同一文档。确认表单展示目标路径和待追加文字，客户端可能保留输出，请仅使用虚构测试内容。
+- [MIT License](LICENSE)

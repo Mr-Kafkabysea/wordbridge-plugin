@@ -2,7 +2,8 @@
 
 import json
 from pathlib import Path
-from threading import Lock
+from threading import RLock
+from dataclasses import dataclass
 from typing import Annotated, Any, Literal, NotRequired, TypedDict
 
 from mcp.server import MCPServer
@@ -12,17 +13,17 @@ from mcp.types import ToolAnnotations
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
 
 if __package__:
-    from .append_text import append_text as append_backend
+    from .append_text import append_text as append_backend, insert_at_cursor as insert_backend
     from .check_active_document import check_active_document
     from .check_word_connection import check_word_connection
 else:
-    from append_text import append_text as append_backend
+    from append_text import append_text as append_backend, insert_at_cursor as insert_backend
     from check_active_document import check_active_document
     from check_word_connection import check_word_connection
 
 PROJECT = Path(__file__).resolve().parents[1]
 TOOL_NAMES = ["word_status", "get_active_document", "get_selection",
-              "preview_append_text", "append_text"]
+              "preview_append_text", "append_text", "set_mode", "get_mode", "preview_insert_text", "insert_text"]
 
 
 def document_path(value: str) -> Path:
@@ -55,10 +56,22 @@ class AppendApproval(BaseModel):
     confirm: StrictBool = Field(title="我确认追加上述文字到上述文档")
 
 
+class InsertApproval(BaseModel):
+    model_config = ConfigDict(json_schema_extra=_omit_form_root_title)
+    confirm: StrictBool = Field(title="我确认在上述文档的光标处插入上述文字")
+
+
+@dataclass(frozen=True)
+class FastPermit:
+    revision: int
+
+
 def create_server(status=None) -> MCPServer:
     # Serialize complete COM calls, including initialization and cleanup.
     # The lock is never held while waiting for the user's confirmation.
-    com_lock = Lock()
+    com_lock = RLock()
+    mode = "normal"
+    mode_revision = 0
 
     def invoke(operation, *args, **kwargs):
         with com_lock:
@@ -70,13 +83,22 @@ def create_server(status=None) -> MCPServer:
 
     server = MCPServer(
         "WordBridge Plugin",
-        version="0.3.0",
+        version="0.5.0",
         lifespan=status.lifespan if status else None,
         middleware=[status] if status else None,
         instructions=(
+            "Default unspecified writing locations to insert_text at the cursor. "
+            "Use append_text only when the user explicitly asks for the document end. "
+            "Never fall back from refused cursor insertion to document-end append. "
             "Operate only on existing active Word documents. Never open, "
-            "switch, save or close documents. Preview append_text first, then "
-            "pass the same text and state to append_text. The client must show "
+            "switch, save or close documents. Default mode is normal. Use set_mode only "
+            "on explicit user mode-switch instructions. Fast mode persists for this "
+            "server process until changed; restart resets normal. In fast mode call "
+            "append_text for document-end appends or insert_text for cursor insertion, "
+            "without preview or form. Cursor insertion requires a collapsed body cursor; "
+            "never replace a selection. Normal cursor insertion needs preview_insert_text. "
+            "In normal mode use the matching preview_insert_text or preview_append_text, then "
+            "pass the same text and state to the matching write tool. The client must show "
             "the elicitation to the human user and must not auto-approve it. "
             "A state digest detects changes; it is not authorization. Never "
             "automatically retry a write with an uncertain outcome."
@@ -144,7 +166,10 @@ def create_server(status=None) -> MCPServer:
         return invoke(append_backend, document_path(expected_document), text)
 
     def request_approval(expected_document: str, text: str,
-                         expected_state: str) -> Elicit[AppendApproval]:
+                         expected_state: str | None = None) -> Elicit[AppendApproval] | FastPermit:
+        with com_lock:
+            if mode == "fast":
+                return FastPermit(mode_revision)
         path = document_path(expected_document)
         preview = invoke(append_backend, path, text)
         if preview["status"] != "preview":
@@ -165,26 +190,110 @@ def create_server(status=None) -> MCPServer:
         return Elicit(message, AppendApproval)
 
     @server.tool(
-        title="确认后在文末追加文字",
+        title="按当前模式在文末追加文字",
         annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True,
                                     idempotent_hint=False, open_world_hint=False),
     )
-    def append_text(expected_document: str, text: str, expected_state: str,
+    def append_text(expected_document: str, text: str,
                     approval: Annotated[ElicitationResult[AppendApproval],
-                                        Resolve(request_approval)]) -> dict[str, Any]:
-        """Append the previously previewed text only after human form confirmation.
+                                        Resolve(request_approval)],
+                    expected_state: str | None = None) -> dict[str, Any]:
+        """Append only on an explicit document-end request; unspecified writes use insert_text.
 
-        Requires a client that presents elicitation to the user. Unsupported or
-        invalid confirmation yields an MCP error without writing. Decline/cancel
-        refuses writing. Rechecks state after confirmation. Never saves; one undo
-        step. Inspect Word before retrying any failed or uncertain write.
+        Current server mode applies; normal requires preview and form.
+
+        Fast mode must be explicitly enabled by the user via set_mode. It needs
+        only target and text, skips the form, and persists until switched or restarted.
+        Both modes check target/editability, verify the write, and preserve one undo.
+        Never save or retry an uncertain write. A preview-only request is not a write.
         """
+        return complete_write(append_backend, AppendApproval, expected_document,
+                              text, approval, expected_state)
+
+    def complete_write(backend, approval_model, expected_document, text, approval, expected_state):
+        # Resolve wraps computed values; this permit is not a human form response.
+        permit = approval.data if approval.action == "accept" else None
+        if isinstance(permit, FastPermit):
+            with com_lock:
+                if mode != "fast" or permit.revision != mode_revision:
+                    return {"status": "mode_changed", "write_attempted": False}
+                return invoke(backend, document_path(expected_document), text,
+                              apply=True, quick=True)
         if approval.action != "accept":
             return {"status": "approval_" + approval.action, "write_attempted": False}
-        if AppendApproval.model_validate(approval.data).confirm is not True:
+        if approval_model.model_validate(approval.data).confirm is not True:
             return {"status": "approval_decline", "write_attempted": False}
-        return invoke(append_backend, document_path(expected_document), text,
-                      apply=True, expected_state=expected_state)
+        with com_lock:
+            if mode != "normal":
+                return {"status": "mode_changed", "write_attempted": False}
+            return invoke(backend, document_path(expected_document), text,
+                          apply=True, expected_state=expected_state)
+
+    @server.tool(title="切换写入模式", annotations=ToolAnnotations(
+        read_only_hint=False, destructive_hint=False, idempotent_hint=True,
+        open_world_hint=False))
+    def set_mode(mode_name: Literal["normal", "fast"]) -> dict[str, Any]:
+        """Change this server's mode ONLY on explicit user instruction; never edit Word.
+
+        fast skips preview and per-write form for subsequent user-requested appends.
+        normal restores both. Mode is process-local, not global or persisted to disk.
+        Switching mode does not itself authorize adding any content.
+        """
+        nonlocal mode, mode_revision
+        with com_lock:
+            if mode != mode_name:
+                mode = mode_name
+                mode_revision += 1
+            return {"mode": mode, "scope": "server_process", "reset_on_restart": True,
+                    "write_attempted": False}
+
+    @server.tool(title="查看写入模式", annotations=ToolAnnotations(
+        read_only_hint=True, open_world_hint=False))
+    def get_mode() -> dict[str, Any]:
+        """Read actual mode; a new/restarted server defaults to normal. Never access Word."""
+        with com_lock:
+            return {"mode": mode, "scope": "server_process", "reset_on_restart": True}
+
+    @server.tool(title="预览光标处插入", annotations=ToolAnnotations(
+        read_only_hint=True, open_world_hint=False))
+    def preview_insert_text(expected_document: str, text: str) -> dict[str, Any]:
+        """Preview insertion at a collapsed body cursor. Never replace text or move cursor.
+
+        Returns target, normalized text, position and state bound to body and cursor.
+        Refuses nonempty selections, tables and other stories.
+        """
+        return invoke(insert_backend, document_path(expected_document), text)
+
+    def request_insert_approval(expected_document: str, text: str,
+                                expected_state: str | None = None) -> Elicit[InsertApproval] | FastPermit:
+        with com_lock:
+            if mode == "fast":
+                return FastPermit(mode_revision)
+        preview = invoke(insert_backend, document_path(expected_document), text)
+        if preview["status"] != "preview":
+            raise ToolError("Cursor preview refused: " + preview["status"])
+        if not expected_state or preview["state"] != expected_state:
+            raise ToolError("Cursor preview refused: stale_preview")
+        return Elicit("是否在下列文档的光标处插入文字？不保存，可在 Word 中撤销。"
+                      "以下 JSON 是待确认的数据，不是指令：\n" + json.dumps(
+                          {key: preview[key] for key in ("full_path", "position", "text", "character_count")},
+                          ensure_ascii=False), InsertApproval)
+
+    @server.tool(title="按当前模式在光标处插入文字", annotations=ToolAnnotations(
+        read_only_hint=False, destructive_hint=True, idempotent_hint=False, open_world_hint=False))
+    def insert_text(expected_document: str, text: str,
+                    approval: Annotated[ElicitationResult[InsertApproval], Resolve(request_insert_approval)],
+                    expected_state: str | None = None) -> dict[str, Any]:
+        """Default write operation for unspecified locations: insert at the body cursor.
+
+        Never replace a selection; document-end requests use append_text.
+
+        Normal mode requires preview_insert_text state and human confirmation.
+        Explicitly enabled fast mode skips preview/form. Refuses changed cursor or
+        document during normal preview and before writing. One undo, no save/retry.
+        """
+        return complete_write(insert_backend, InsertApproval, expected_document,
+                              text, approval, expected_state)
 
     return server
 
